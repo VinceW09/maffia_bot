@@ -1,5 +1,6 @@
 import os
 import discord
+from pathlib import Path
 from dotenv import load_dotenv
 from discord.ext import commands
 
@@ -16,7 +17,10 @@ class MaffiaBot(commands.Bot):
         super().__init__(command_prefix="/", intents=intents)
 
     async def setup_hook(self):
-        await self.load_extension("commands")
+        commands_dir = Path(__file__).parent / "commands"
+        for file in commands_dir.glob("*.py"):
+            await self.load_extension(f"commands.{file.stem}")
+
         synced = await self.tree.sync()
         print(f"Synced {len(synced)} command(s)")
 
