@@ -11,17 +11,21 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
 
-client = commands.Bot(command_prefix="/", intents=intents)
+class MaffiaBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix="/", intents=intents)
+
+    async def setup_hook(self):
+        await self.load_extension("commands")
+        synced = await self.tree.sync()
+        print(f"Synced {len(synced)} command(s)")
+
+client = MaffiaBot()
 
 @client.event
 async def on_ready():
-    print(f'Maffia Bot has successfully logged in as: {client.user}')
-    try:
-        synced = await client.tree.sync()
-        print(f"Synced {len(synced)} command(s)")
-        print("Bot is now online!")
-    except Exception as e:
-        print(f"Error syncing commands: {e}")
+    print(f"Maffia Bot has successfully logged in as: {client.user}")
+    print("Bot is now online!")
 
 @client.tree.error
 async def on_app_command_error(interaction, error):
