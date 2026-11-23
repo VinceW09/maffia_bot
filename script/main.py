@@ -23,15 +23,6 @@ async def on_ready():
     except Exception as e:
         print(f"Error syncing commands: {e}")
 
-# - ↓ - ALL COMMANDS ↓ ↓ ALL COMMANDS ↓ ↓ ALL COMMANDS - ↓ - #
-
-# /ping
-@client.tree.command(name="ping", description="Checks the bot's ping!")
-async def ping(interaction: discord.Interaction):
-    await interaction.response.send_message(f"Pong! I reacted in: {round((round(client.latency, 3))*1000)} milliseconds!", ephemeral=True)
-
-# -  - END OF ALL COMMANDS  - || -  END OF ALL COMMANDS -  - #
-
 @client.tree.error
 async def on_app_command_error(interaction, error):
     if isinstance(error, commands.MissingPermissions):

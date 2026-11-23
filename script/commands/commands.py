@@ -1,4 +1,5 @@
-
+import discord
+from main import client
 
 # /ping
 @client.tree.command(name="ping", description="Checks the bot's ping!")
