@@ -2,6 +2,7 @@ import json
 import os
 import re
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Literal, Optional
 
 import discord
@@ -11,53 +12,20 @@ from discord.ext import commands, tasks
 
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 
-DEFAULT_FILE = DATA_DIR + "default_config.json"
-WEEK_FILE = DATA_DIR + "current_week.json"
-SCRIPTS_FILE = DATA_DIR + "scripts.json"
-SHEETS_DIR = DATA_DIR + "sheets"
+DEFAULT_FILE = DATA_DIR / "default_config.json"
+WEEK_FILE = DATA_DIR / "current_week.json"
+SCRIPTS_FILE = DATA_DIR / "scripts.json"
+SHEETS_DIR = DATA_DIR / "sheets"
 
 
-def load_json(path: str) -> dict:
+def load_json(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def save_json(path: str, data: dict):
+
+def save_json(path: Path, data: dict):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
-
-
-class ScriptSheetView(discord.ui.View):
-    def __init__(self, scripts: dict):
-        super().__init__(timeout=None)
-        for script_name in list(scripts.keys())[:25]:
-            btn = discord.ui.Button(
-                label=f"Sheet: {script_name}",
-                style=discord.ButtonStyle.secondary,
-                custom_id=f"botc_sheet:{script_name}"
-            )
-            btn.callback = self.make_callback(script_name)
-            self.add_item(btn)
-
-    def make_callback(self, script_name: str):
-        async def callback(interaction: discord.Interaction):
-            scripts = load_json(SCRIPTS_FILE)
-            script = scripts.get(script_name)
-            if not script:
-                return await interaction.response.send_message("Script ej hittat.", ephemeral=True)
-
-            image_path = script.get("image")
-            if not image_path or not os.path.exists(image_path):
-                return await interaction.response.send_message("Charachter sheet för scriptet kunde inte hittas.", ephemeral=True)
-
-            try:
-                await interaction.user.send(
-                    content=f"**{script_name} — Character Sheet**",
-                    file=discord.File(image_path)
-                )
-                await interaction.response.send_message(f"Skickade **{script_name}** till dig!", ephemeral=True)
-            except discord.Forbidden:
-                await interaction.response.send_message("Jag kunde inte DM:a dig! Vänligen aktivera DMs från server medlemmar.", ephemeral=True)
-        return callback
 
 
 @app_commands.default_permissions(administrator=True)
@@ -65,10 +33,10 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.ensure_files()
-        self.scheduler_loop.start()
+        self.weekly_reset_loop.start()
 
     def cog_unload(self):
-        self.scheduler_loop.cancel()
+        self.weekly_reset_loop.cancel()
 
     def get_current_saturday_str(self) -> str:
         now = datetime.now().astimezone()
@@ -83,9 +51,13 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
 
         if not os.path.exists(DEFAULT_FILE):
             save_json(DEFAULT_FILE, {
-                "day_of_week": 2, "hour": 14, "minute": 15, "duration_hours": 6,
-                "location": "N207", "description": "BOTC",
-                "announcement_channel_id": 1574732413823750245, "script_upload_channel_id": 1574732658322309233
+                "day_of_week": 2,
+                "hour": 14,
+                "minute": 15,
+                "duration_hours": 6,
+                "location": "N207",
+                "announcement_channel_id": 1574732413823750245,
+                "script_upload_channel_id": 1574732658322309233
             })
 
         sat_str = self.get_current_saturday_str()
@@ -96,7 +68,6 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
         defaults = load_json(DEFAULT_FILE)
         save_json(WEEK_FILE, {
             "last_saturday": sat_str,
-            "skipped": False,
             "day_of_week": defaults["day_of_week"],
             "hour": defaults["hour"],
             "minute": defaults["minute"],
@@ -108,9 +79,11 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
 
     def get_session_datetime(self, week_data: dict) -> datetime:
         now = datetime.now().astimezone()
-    
-        if now.weekday() >= 5: monday = now + timedelta(days=(7 - now.weekday()))
-        else: monday = now - timedelta(days=now.weekday())
+
+        if now.weekday() >= 5:
+            monday = now + timedelta(days=(7 - now.weekday()))
+        else:
+            monday = now - timedelta(days=now.weekday())
 
         target_day = monday + timedelta(days=week_data["day_of_week"])
         return target_day.replace(
@@ -119,6 +92,13 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
             second=0,
             microsecond=0
         )
+
+    @tasks.loop(minutes=5)
+    async def weekly_reset_loop(self):
+        sat_str = self.get_current_saturday_str()
+        week = load_json(WEEK_FILE)
+        if week.get("last_saturday") != sat_str:
+            self.reset_current_week(sat_str)
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -133,7 +113,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
         if not script_name or not message.attachments:
             await message.add_reaction("❌")
             err = await message.reply(
-                "Vänligen bifoga charachter sheet **och** skriv namnet i samma meddelande",
+                "Vänligen bifoga character sheet **och** skriv namnet i samma meddelande",
                 mention_author=False
             )
             await err.delete(delay=8)
@@ -183,13 +163,6 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
             save_json(SCRIPTS_FILE, scripts)
             print(f"[BOTC] Deleted script '{script_to_remove}' because its upload message was deleted.")
 
-    @app_commands.command(name="skip", description="Ställa in/återställa veckans maffia-träff")
-    async def skip_week(self, interaction: discord.Interaction, skip: bool = True):
-        week = load_json(WEEK_FILE)
-        week["skipped"] = skip
-        save_json(WEEK_FILE, week)
-        await interaction.response.send_message(f"Denna veckas hvit maffia-träff är nu **{'inställd' if skip else 'återställd'}**.", ephemeral=True)
-
     @app_commands.command(name="edit_week", description="Ändra info för denna vecka endast (Lör-Fre)")
     async def edit_week(
         self,
@@ -201,10 +174,14 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
     ):
         day_map = {"Måndag": 0, "Tisdag": 1, "Onsdag": 2, "Torsdag": 3, "Fredag": 4}
         week = load_json(WEEK_FILE)
-        if day: week["day_of_week"] = day_map[day]
-        if hour is not None: week["hour"] = hour
-        if minute is not None: week["minute"] = minute
-        if location: week["location"] = location
+        if day:
+            week["day_of_week"] = day_map[day]
+        if hour is not None:
+            week["hour"] = hour
+        if minute is not None:
+            week["minute"] = minute
+        if location:
+            week["location"] = location
         save_json(WEEK_FILE, week)
         await interaction.response.send_message("Ändrade **denna veckas** info.", ephemeral=True)
 
@@ -221,16 +198,22 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
     ):
         day_map = {"Måndag": 0, "Tisdag": 1, "Onsdag": 2, "Torsdag": 3, "Fredag": 4}
         defaults = load_json(DEFAULT_FILE)
-        if day: defaults["day_of_week"] = day_map[day]
-        if hour is not None: defaults["hour"] = hour
-        if minute is not None: defaults["minute"] = minute
-        if location: defaults["location"] = location
-        if announcement_channel: defaults["announcement_channel_id"] = announcement_channel.id
-        if script_channel: defaults["script_upload_channel_id"] = script_channel.id
+        if day:
+            defaults["day_of_week"] = day_map[day]
+        if hour is not None:
+            defaults["hour"] = hour
+        if minute is not None:
+            defaults["minute"] = minute
+        if location:
+            defaults["location"] = location
+        if announcement_channel:
+            defaults["announcement_channel_id"] = announcement_channel.id
+        if script_channel:
+            defaults["script_upload_channel_id"] = script_channel.id
         save_json(DEFAULT_FILE, defaults)
         await interaction.response.send_message("Ändrade **standard** inställningar.", ephemeral=True)
 
-    @app_commands.command(name="scripts", description="Visa scripts")
+    @app_commands.command(name="scripts", description="Visa sparade scripts")
     async def manage_scripts(self, interaction: discord.Interaction):
         scripts = load_json(SCRIPTS_FILE)
 
@@ -240,39 +223,47 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
         lines = []
         for name, info in scripts.items():
             has_img = "🖼️" if info.get("image") else ""
-            lines.append(f"• **{name}** {has_img} {info.get('url', '')}")
+            lines.append(f"• **{name}** {has_img}")
         await interaction.response.send_message("\n".join(lines), ephemeral=True)
 
-    @tasks.loop(minutes=1)
-    async def scheduler_loop(self):
-        await self.bot.wait_until_ready()
+    @app_commands.command(name="poll", description="Skapa veckans event, skicka poll och lägg upp scripts i en tråd")
+    async def create_poll(self, interaction: discord.Interaction, message: str, make_event: Optional[bool] = False):
+        await interaction.response.defer(ephemeral=True)
 
         sat_str = self.get_current_saturday_str()
         week = load_json(WEEK_FILE)
-        if week.get("week_saturday") != sat_str:
+        if week.get("last_saturday") != sat_str:
             self.reset_current_week(sat_str)
             week = load_json(WEEK_FILE)
 
-        if week.get("skipped"):
-            return
+        if week.get("poll_posted"):
+            return await interaction.followup.send(
+                "Veckans poll och event har redan skickats ut!",
+                ephemeral=True
+            )
 
         defaults = load_json(DEFAULT_FILE)
-        now = datetime.now().astimezone()
-        session_start = self.get_session_datetime(week)
-        poll_open_time = session_start - timedelta(days=2)
-
-        channel = self.bot.get_channel(defaults["announcement_channel_id"])
+        channel = interaction.guild.get_channel(defaults["announcement_channel_id"])
         if not channel or not isinstance(channel, discord.TextChannel):
-            return
+            return await interaction.followup.send(
+                "Kunde inte hitta announcements-kanalen. Kontrollera `/botc edit_default`.",
+                ephemeral=True
+            )
 
-        if not week["poll_posted"] and poll_open_time <= now < session_start:
-            scripts = load_json(SCRIPTS_FILE)
-            if not scripts:
-                return
+        scripts = load_json(SCRIPTS_FILE)
+        if not scripts:
+            return await interaction.followup.send(
+                "Det finns inga sparade scripts att rösta om!",
+                ephemeral=True
+            )
 
-            end_time = session_start + timedelta(hours=defaults.get("duration_hours", 3))
-            event = await channel.guild.create_scheduled_event(
+        session_start = self.get_session_datetime(week)
+        end_time = session_start + timedelta(hours=defaults.get("duration_hours", 6))
+
+        if make_event:
+            event = await interaction.guild.create_scheduled_event(
                 name="Hvit Maffia Träff",
+                description=defaults.get("description", "BOTC"),
                 start_time=session_start,
                 end_time=end_time,
                 location=week["location"],
@@ -280,24 +271,59 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
                 privacy_level=discord.PrivacyLevel.guild_only
             )
 
-            poll = discord.Poll(
-                question="Vilka scripts?",
-                duration=timedelta(hours=47, minutes=30),
-                multiple=True
-            )
-            for script_name in list(scripts.keys())[:10]:
-                poll.add_answer(text=script_name[:55])
+        now = datetime.now().astimezone()
+        remaining = session_start - now
+        poll_duration = max(timedelta(hours=1), min(remaining, timedelta(days=32)))
 
-            msg = await channel.send(
-                content=f"@aktiv Hvit Maffia Träff på **{discord.utils.format_dt(session_start, 'F')}** i **{week['location']}**\n{event.url}",
-                poll=poll,
-                view=ScriptSheetView(scripts)
-            )
+        poll = discord.Poll(
+            question="Vilka scripts?",
+            duration=poll_duration,
+            multiple=True
+        )
+        for script_name in list(scripts.keys())[:10]:
+            poll.add_answer(text=script_name[:55])
 
-            week["poll_posted"] = True
-            week["poll_message_id"] = msg.id
-            week["event_id"] = event.id
-            save_json(WEEK_FILE, week)
+        announcement_content = f"{message}\n{(event.url) if make_event else ''}"
+
+        msg = await channel.send(
+            content=announcement_content,
+            poll=poll
+        )
+
+        thread = await msg.create_thread(
+            name="Character Sheets — Veckans Scripts",
+        )
+
+        for script_name, info in scripts.items():
+            img_path = info.get("image")
+            if img_path and os.path.exists(img_path):
+                await thread.send(
+                    content=f"**{script_name}**",
+                    file=discord.File(img_path)
+                )
+            else:
+                await thread.send(content=f"**{script_name}** *(ingen bild hittades)*")
+
+        await thread.edit(locked=True)
+
+        week["poll_posted"] = True
+        week["poll_message_id"] = msg.id
+        week["event_id"] = (event.id) if make_event else None
+        save_json(WEEK_FILE, week)
+
+        await interaction.followup.send(
+            f"Skapade event, skickade poll och lade upp alla character sheets i tråden {thread.mention}!",
+            ephemeral=True
+        )
+
+    @app_commands.command(name="reset", description="Återställ veckans inställningar instant")
+    async def reset_week_now(self, interaction: discord.Interaction):
+        sat_str = self.get_current_saturday_str()
+        self.reset_current_week(sat_str)
+        await interaction.response.send_message(
+            "Veckan har återställts till standardinställningarna och du kan nu skicka en ny `/botc poll`!",
+            ephemeral=True
+        )
 
 
 async def setup(bot: commands.Bot):
