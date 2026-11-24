@@ -1,4 +1,4 @@
-# Maffia Bot
+# Maffiaboss Discord Bot
 
 A modular `discord.py` bot built for our server to automate weekly *Blood on the Clocktower* script polls, event scheduling, and party commands.
 
