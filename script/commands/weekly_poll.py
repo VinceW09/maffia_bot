@@ -56,8 +56,8 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
                 "minute": 15,
                 "duration_hours": 6,
                 "location": "N207",
-                "announcement_channel_id": 1574732413823750245,
-                "script_upload_channel_id": 1574732658322309233
+                "announcement_channel_id": None,
+                "script_upload_channel_id": None
             })
 
         sat_str = self.get_current_saturday_str()
@@ -72,8 +72,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
             "hour": defaults["hour"],
             "minute": defaults["minute"],
             "location": defaults["location"],
-            "poll_posted": False,
-            "poll_message_id": None,
+            "poll_message_ids": [],
             "event_id": None
         })
 
@@ -236,12 +235,6 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
             self.reset_current_week(sat_str)
             week = load_json(WEEK_FILE)
 
-        if week.get("poll_posted"):
-            return await interaction.followup.send(
-                "Veckans poll och event har redan skickats ut!",
-                ephemeral=True
-            )
-
         defaults = load_json(DEFAULT_FILE)
         channel = interaction.guild.get_channel(defaults["announcement_channel_id"])
         if not channel or not isinstance(channel, discord.TextChannel):
@@ -275,22 +268,30 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
         remaining = session_start - now
         poll_duration = max(timedelta(hours=1), min(remaining, timedelta(days=32)))
 
-        poll = discord.Poll(
-            question="Vilka scripts?",
+        script_items = list(scripts.keys())
+        chunks = [script_items[i:i + 10] for i in range(0, len(script_items), 10)]
+        total_polls = len(chunks)
+
+        announcement_content = f"{message}\n{event.url if make_event else ''}"
+        poll_messages = []
+
+        for index, chunk in enumerate(chunks, start=1):
+    
+            title = f"Vilka scripts? ({index}/{total_polls})" if total_polls > 1 else "Vilka scripts?"
+
+            poll = discord.Poll(
+            question=title,
             duration=poll_duration,
             multiple=True
-        )
-        for script_name in list(scripts.keys())[:10]:
-            poll.add_answer(text=script_name[:55])
+            )
+            for script_name in chunk:
+                poll.add_answer(text=script_name[:55])
 
-        announcement_content = f"{message}\n{(event.url) if make_event else ''}"
+            content = announcement_content if index == 1 else None
+            msg = await channel.send(content=content, poll=poll)
+            poll_messages.append(msg)
 
-        msg = await channel.send(
-            content=announcement_content,
-            poll=poll
-        )
-
-        thread = await msg.create_thread(
+        thread = await poll_messages[-1].create_thread(
             name="Character Sheets — Veckans Scripts",
         )
 
@@ -298,7 +299,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
             img_path = info.get("image")
             if img_path and os.path.exists(img_path):
                 await thread.send(
-                    content=f"**{script_name}**",
+                    content=f"{script_name}",
                     file=discord.File(img_path)
                 )
             else:
@@ -306,8 +307,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
 
         await thread.edit(locked=True)
 
-        week["poll_posted"] = True
-        week["poll_message_id"] = msg.id
+        week["poll_message_ids"] = [m.id for m in poll_messages]
         week["event_id"] = (event.id) if make_event else None
         save_json(WEEK_FILE, week)
 
