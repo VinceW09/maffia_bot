@@ -117,6 +117,15 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
             )
             await err.delete(delay=8)
             return
+        
+        if len(script_name) > 55:
+            await message.add_reaction("❌")
+            err = await message.reply(
+                "För långt namn...",
+                mention_author=False
+            )
+            await err.delete(delay=8)
+            return
 
         attachment = message.attachments[0]
         if not attachment.content_type or not attachment.content_type.startswith("image/"):
@@ -285,7 +294,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
             multiple=True
             )
             for script_name in chunk:
-                poll.add_answer(text=script_name[:55])
+                poll.add_answer(text=script_name)
 
             content = announcement_content if index == 1 else None
             msg = await channel.send(content=content, poll=poll)
@@ -315,6 +324,63 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
             f"Skapade event, skickade poll och lade upp alla character sheets i tråden {thread.mention}!",
             ephemeral=True
         )
+
+    @app_commands.command(name="winner", description="Annoncera veckans script efter pollen")
+    async def announce_winner(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        
+        poll_ids = load_json(WEEK_FILE)["poll_message_ids"]
+        announcement_channel = await self.bot.fetch_channel(load_json(DEFAULT_FILE)["announcement_channel_id"])
+        
+        if not announcement_channel or not poll_ids:
+            await interaction.followup.send("Hittade ingen aktiv poll att räkna röster från.", ephemeral=True)
+            return
+
+        highest_votes = 0
+        winners: list[str] = []
+        for poll_id in poll_ids:
+            try:
+                poll_message = await announcement_channel.fetch_message(poll_id)
+            except discord.NotFound:
+                continue
+
+            if not poll_message.poll:
+                continue
+
+            for answer in poll_message.poll.answers:
+                if answer.vote_count > highest_votes:
+                    highest_votes = answer.vote_count
+                    winners = [answer.text]
+                elif answer.vote_count == highest_votes and highest_votes > 0:
+                    winners.append(answer.text)
+
+        if not winners:
+            await interaction.followup.send("Ingen röstade på något script den här veckan!")
+            return
+
+        if len(winners) == 1:
+            winner_name = winners[0]
+
+            script_data = load_json(SCRIPTS_FILE)[winner_name]
+
+            image_path = script_data["image"]
+            text = f"Veckans vinnande script med **{highest_votes}** röst{'er' if highest_votes > 1 else ''} är: **{winner_name}**!"
+
+            if image_path and os.path.exists(image_path):
+                await announcement_channel.send(content=text, file=discord.File(image_path))
+            else:
+                await announcement_channel.send(content=text)
+        else:
+            if len(winners) == 2:
+                formatted = f"**{winners[0]}** och **{winners[1]}**"
+            else:
+                formatted = ", ".join(f"**{w}**" for w in winners[:-1]) + f" och **{winners[-1]}**"
+
+            await announcement_channel.send(
+                f"Oavgjort med **{highest_votes}** röst{'er' if highest_votes > 1 else ''} mellan {formatted}!"
+            )
+
+        await interaction.followup.send("Vinnaren har annonserats!", ephemeral=True)
 
     @app_commands.command(name="reset", description="Återställ veckans inställningar instant")
     async def reset_week_now(self, interaction: discord.Interaction):
