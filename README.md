@@ -48,9 +48,9 @@ maffiaboss-discord-bot/
     ```
     *(Make sure **Message Content Intent** and **Server Members Intent** are enabled in the Developer Portal.)*
 
-4. **Invite your bot to your server**
-    Inside `Overview > Installation` uncheck `User Install` and under `Default Install Settings > Scopes` add the `bot` scope.
-    Then copy the `Discord Provided Link` and choose your discord server. (You must have admin privileges)
+4. **Invite your bot to your server:**
+    Inside `Overview > Installation`, uncheck `User Install`, and under `Default Install Settings > Scopes` add the `bot` scope.
+    Then copy the `Discord Provided Link` and choose your discord server. *(You need admin privileges)*
 
 5. **Start the bot:**
     ```bash
