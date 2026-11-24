@@ -234,7 +234,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
             lines.append(f"• **{name}** {has_img}")
         await interaction.response.send_message("\n".join(lines), ephemeral=True)
 
-    @app_commands.command(name="poll", description="Skapa veckans event, skicka poll och lägg upp scripts i en tråd")
+    @app_commands.command(name="poll", description="Skicka poll, (gör event) och lägg upp scripts i en tråd")
     async def create_poll(self, interaction: discord.Interaction, message: str, make_event: Optional[bool] = False):
         await interaction.response.defer(ephemeral=True)
 
@@ -321,7 +321,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Hanter
         save_json(WEEK_FILE, week)
 
         await interaction.followup.send(
-            f"Skapade event, skickade poll och lade upp alla character sheets i tråden {thread.mention}!",
+            f"Skickade poll{', skapade event och' if make_event else ' och'} lade upp alla character sheets i tråden {thread.mention}!",
             ephemeral=True
         )
 
