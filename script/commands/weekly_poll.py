@@ -216,7 +216,8 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
             return await interaction.response.send_message("Redan borttaget", ephemeral=True)
         else:
             script["in_poll"] = False
-            script_channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
+            script_channel_id = scripts_json["script_channel_id"]
+            script_channel = self.bot.get_channel(script_channel_id) or await self.bot.fetch_channel(script_channel_id)
             script_message = await script_channel.fetch_message(script["message_id"])
             await script_message.remove_reaction("🗳️")
             return await interaction.response.send_message(f"{script['name']} är nu tillagt.", ephemeral=True)
