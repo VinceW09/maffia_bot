@@ -11,23 +11,6 @@ The bot automates weekly *Blood on the Clocktower* script selection and session 
 * **Winner Announcement:** Tallies votes across all active polls and announces the winning script with its character sheet image (or highlights ties).
 * **Modular Extensions:** Additional utility and party commands are loaded automatically from `script/commands/`.
 
-## Project Structure
-
-```text
-maffiaboss-discord-bot/
-├── data/                    # Untracked local data
-├── script/
-│   ├── main.py              # Bot entry point and automatic Cog loader
-│   └── commands/
-│       ├── general.py       # Party/Utility commands
-│       ├── weekly_poll.py   # Special BOTC Poll feature
-|       └── ...              # Feel free to contribute with your own ideas!
-├── .env                     # Your bot token (not tracked in Git)
-├── .gitignore
-├── CONTRIBUTING.md
-└── README.md
-```
-
 ## Running Locally
 
 1. **Clone the repository:**
@@ -49,8 +32,7 @@ maffiaboss-discord-bot/
     *(Make sure **Message Content Intent** and **Server Members Intent** are enabled in the Developer Portal.)*
 
 4. **Invite your bot to your server:**
-    Inside `Overview > Installation`, uncheck `User Install`, and under `Default Install Settings > Scopes` add the `bot` scope.
-    Then copy the `Discord Provided Link` and choose your discord server. *(You need admin privileges)*
+    Make sure to uncheck `User Install` inside `Overview > Installation`, as well as adding the `bot` scope under `Default Install Settings > Scopes`.
 
 5. **Start the bot:**
     ```bash
