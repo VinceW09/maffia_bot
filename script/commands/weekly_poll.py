@@ -1,6 +1,8 @@
 import json
 import os
 import re
+import string
+import random
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Literal, Optional
@@ -60,7 +62,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
             return
 
         scripts_json = load_json(SCRIPTS_FILE)
-        if message.channel.id != defaults.get("script_channel_id"):
+        if message.channel.id != scripts_json["script_channel_id"]:
             return
 
         script_name = message.content.strip().split("\n")[0].strip()
@@ -95,7 +97,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
         await attachment.save(saved_image_path)
 
         key = scripts_json["available_keys"].pop()
-        scripts["scripts"][key] = {
+        scripts_json["scripts"][key] = {
             "name": script_name,
             "image": saved_image_path,
             "in_poll": False,
@@ -108,7 +110,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
     @commands.Cog.listener()
     async def on_raw_message_delete(self, payload: discord.RawMessageDeleteEvent):
         scripts_json = load_json(SCRIPTS_FILE)
-        if payload.channel_id != defaults.get("script_channel_id"):
+        if payload.channel_id != scripts_json["script_channel_id"]:
             return
 
         scripts = scripts_json["scripts"]
@@ -161,7 +163,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
 
         lines = []
         for key, script_data in scripts_json["scripts"].items():
-            lines.append(f" - **{script_data['name']}**{' :ballot_box:' if script_data['in_poll'] else ''}: {key}")
+            lines.append(f" - **{script_data['name']}**{' 🗳️' if script_data['in_poll'] else ''}: {key}")
 
         await interaction.response.send_message("\n".join(lines), ephemeral=True)
 
@@ -175,12 +177,14 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
         script = scripts_json["scripts"][script_key]
         img_path = script.get("image")
         if img_path and os.path.exists(img_path):
-            channel.send(content=(f"**{script['name']}**"), file=discord.File(img_path))
+            await channel.send(content=(f"**{script['name']}**"), file=discord.File(img_path))
         else:
             return await interaction.response.send_message("Hittade inte bilden", ephemeral=True)
 
+        await interaction.response.send_message(f"Skickat i {channel}", ephemeral=True)
+
     @app_commands.command(name="add_script", description="Addera script till poll")
-    async def display_script(self, interaction: discord.Interaction, script_key: str):
+    async def add_script(self, interaction: discord.Interaction, script_key: str):
         scripts_json = load_json(SCRIPTS_FILE)
 
         if not scripts_json["scripts"][script_key]:
@@ -192,13 +196,15 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
             return await interaction.response.send_message("Redan tillagt", ephemeral=True)
         else:
             script["in_poll"] = True
-            script_channel = self.bot.get_channel(channel_id) or await self.bot.fetch_channel(channel_id)
+            script_channel_id = scripts_json["script_channel_id"]
+            script_channel = self.bot.get_channel(script_channel_id) or await self.bot.fetch_channel(script_channel_id)
             script_message = await script_channel.fetch_message(script["message_id"])
             await script_message.add_reaction("🗳️")
+            save_json(SCRIPTS_FILE, scripts_json)
             return await interaction.response.send_message(f"{script['name']} är nu tillagt.", ephemeral=True)
 
     @app_commands.command(name="remove_script", description="Ta bort script från poll")
-    async def display_script(self, interaction: discord.Interaction, script_key: str):
+    async def remove_script(self, interaction: discord.Interaction, script_key: str):
         scripts_json = load_json(SCRIPTS_FILE)
 
         if not scripts_json["scripts"][script_key]:
@@ -216,7 +222,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
             return await interaction.response.send_message(f"{script['name']} är nu tillagt.", ephemeral=True)
             
     @app_commands.command(name="poll", description="Skicka poll och lägg upp scripts i en tråd")
-    async def create_poll(self, interaction: discord.Interaction, channel: discord.TextChannel, message: str):
+    async def poll(self, interaction: discord.Interaction, channel: discord.TextChannel, message: str):
         await interaction.response.defer(ephemeral=True)
 
         scripts_json = load_json(SCRIPTS_FILE)
