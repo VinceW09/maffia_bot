@@ -1,15 +1,12 @@
 # Maffiaboss Discord Bot
 
-A modular `discord.py` bot built for our server to automate weekly *Blood on the Clocktower* script polls, event scheduling, and party commands.
+A modular `discord.py` bot built to simplify *Blood on the Clocktower* script polls.
 
 ## How It Works
 
-The bot automates weekly *Blood on the Clocktower* script selection and session setup:
-
-* **Script Library:** Stores available scripts along with their character sheet images.
-* **Automated Multi-Poll Voting:** Splits the script list into chained Discord polls (handling Discord's 10-option limit automatically) and opens a thread with all character sheets.
-* **Winner Announcement:** Tallies votes across all active polls and announces the winning script with its character sheet image (or highlights ties).
-* **Modular Extensions:** Additional utility and party commands are loaded automatically from `script/commands/`.
+* **Script Library:** The bot can store up to 260 scripts along with character sheets.
+* **Automated Poll:** Takes stored scripts and generates polls (and splits them if necessary).
+* **Modularity:** Additional commands can easily be made in `script/commands/`.
 
 ## Running Locally
 

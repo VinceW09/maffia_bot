@@ -1,6 +1,6 @@
 # Contributing to Maffia Bot
 
-Thanks for adding commands to the bot! To keep the bot stable and avoid merge conflicts, please follow these rules when contributing:
+To keep the bot stable and avoid merge conflicts, please follow these rules when contributing:
 
 ## Ground Rules
 1. **Never push directly to `main`.** Always create a new branch (or fork) for your feature or fix and open a Pull Request.
