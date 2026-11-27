@@ -2,7 +2,7 @@
 
 A modular `discord.py` bot built to simplify *Blood on the Clocktower* script polls.
 
-## How It Works
+## Features
 
 * **Script Library:** The bot can store up to 260 scripts along with character sheets.
 * **Automated Poll:** Takes stored scripts and generates polls (and splits them if necessary).
