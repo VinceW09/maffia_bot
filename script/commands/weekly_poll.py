@@ -26,6 +26,15 @@ def save_json(path: Path, data: dict):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
+def get_empty_scripts_json():
+    all_keys = [f"{num}{let}" for num in string.digits for let in string.ascii_uppercase]
+    random.shuffle(all_keys)
+        
+    return {
+        "available_keys": all_keys,
+        "script_channel_id": None,
+        "scripts": {}
+    }
 
 @app_commands.default_permissions(administrator=True)
 class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-kommandon gällande botc poll/script hantering."):
@@ -36,18 +45,7 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
     def ensure_files(self):
         os.makedirs(SHEETS_DIR, exist_ok=True)
 
-        if not os.path.exists(SCRIPTS_FILE):
-
-            all_keys = [f"{num}{let}" for num in string.digits for let in string.ascii_uppercase]
-            random.shuffle(all_keys)
-        
-            new_scripts_json = {
-                "available_keys": all_keys,
-                "script_channel_id": None,
-                "scripts": {}
-            }
-
-            save_json(SCRIPTS_FILE, new_scripts_json)
+        if not os.path.exists(SCRIPTS_FILE): save_json(SCRIPTS_FILE, get_empty_scripts_json())
 
         if not os.path.exists(POLL_FILE):
             new_poll_json = {
@@ -138,10 +136,19 @@ class WeeklyPoll(commands.GroupCog, group_name="botc", group_description="Admin-
     async def set_script_channel(self, interaction: discord.Interaction, script_channel: discord.TextChannel):
 
         script_json = load_json(SCRIPTS_FILE)
+
+        if script_json["script_channel_id"] == script_channel.id:
+            return await interaction.response.send_message(f"{script_channel} är redan valt", ephemeral=True)
+
+        script_json = get_empty_scripts_json()
         script_json["script_channel_id"] = script_channel.id
         save_json(SCRIPTS_FILE, script_json)
 
-        await interaction.response.send_message(f"Ändrade scripts_kanalen till {script_channel}", ephemeral=True)
+        if SHEETS_DIR.exists():
+            for item in SHEETS_DIR.iterdir():
+                item.unlink()
+
+        await interaction.response.send_message(f"Ändrade scripts_kanalen till {script_channel} (eventuella scripts i gamla kanalen är bortagna)", ephemeral=True)
 
     @app_commands.command(name="saved_scripts", description="Visa sparade script")
     async def saved_scripts(self, interaction: discord.Interaction):
